@@ -1,0 +1,1056 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1d2433">
+<meta name="description" content="농구 동호회 팀 짜기 · 공정 추첨">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>농구 팀 짜기</title>
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<script>
+/* 독립 실행용: Claude 뷰어 대신 저장 기능을 직접 제공 */
+(function(){
+  const MIME={png:"image/png",gif:"image/gif",mp4:"video/mp4",webm:"video/webm"};
+  const toB64=blob=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]);r.onerror=rej;r.readAsDataURL(blob)});
+  const downloads={async save({filename,data}){
+    const ext=(filename.split(".").pop()||"").toLowerCase(), mime=MIME[ext]||"application/octet-stream";
+    const blob=data instanceof Blob?data:new Blob([data],{type:mime});
+    if(window.AndroidBridge&&window.AndroidBridge.saveFile){
+      const r=window.AndroidBridge.saveFile(filename,mime,await toB64(blob));
+      if(r!=="ok")throw {code:"unavailable",message:r};
+      return {status:"saved"};
+    }
+    try{const file=new File([blob],filename,{type:mime});
+      if(navigator.canShare&&navigator.canShare({files:[file]})&&/Android|iPhone|iPad/i.test(navigator.userAgent)){
+        try{await navigator.share({files:[file],title:filename});return {status:"saved"}}catch(e){if(e&&e.name==="AbortError")throw {code:"declined"}}}
+    }catch(e){if(e&&e.code)throw e}
+    const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),60000);return {status:"saved"};
+  }};
+  window.claude={use:async name=>name==="downloads"?downloads:null};
+  if("serviceWorker" in navigator&&location.protocol==="https:"&&!window.AndroidBridge)
+    window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+})();
+</script>
+</head>
+<body>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: 코트 라인처럼 얇은 선으로 구획된 2단(명단 | 결과), 폰에서는 1단 */
+:root{
+  --bg:#f3ece0; --panel:#fbf7f0; --ink:#1d2433; --muted:#6b6457; --line:#d9cdb8;
+  --accent:#e2621b; --accent-ink:#fff; --g:#2f6fb5; --f:#3b8a5a; --c:#9b4dbf;
+  --atk:#d0452b; --def:#2f6fb5; --pas:#3b8a5a;
+  --display:"Black Han Sans","Noto Sans KR",system-ui,sans-serif;
+  --body:"Noto Sans KR",system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#16191f; --panel:#1f232b; --ink:#ece6da; --muted:#9a9384; --line:#343a45;
+  --accent:#f07a35; --accent-ink:#1a1206; --g:#6aa5e8; --f:#6cc08c; --c:#c48ae0;
+  --atk:#f07a62; --def:#6aa5e8; --pas:#6cc08c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#16191f; --panel:#1f232b; --ink:#ece6da; --muted:#9a9384; --line:#343a45;
+  --accent:#f07a35; --accent-ink:#1a1206; --g:#6aa5e8; --f:#6cc08c; --c:#c48ae0;
+  --atk:#f07a62; --def:#6aa5e8; --pas:#6cc08c; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:3px solid var(--ink);padding-bottom:10px}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,6vw,42px);line-height:1;margin:0;letter-spacing:.01em}
+h1 span{color:var(--accent)}
+.sub{color:var(--muted);font-size:13px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:20px;align-items:start}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+section{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+h2{font-family:var(--display);font-weight:400;font-size:20px;margin:0;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+h2 small{font-family:var(--body);font-size:12px;color:var(--muted);font-weight:500;letter-spacing:.04em}
+.add{display:flex;flex-direction:column;gap:8px}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.add input#nameIn{flex:1;min-width:120px}
+.lbl{font-size:12px;color:var(--muted);font-weight:700;min-width:30px}
+input,select,button,textarea{font:inherit;color:var(--ink)}
+input,select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:8px 10px;min-width:0}
+button{cursor:pointer;border:1px solid var(--ink);background:transparent;border-radius:4px;padding:8px 12px;font-weight:700}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button.ghost{border-color:var(--line);font-weight:500;color:var(--muted)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.toolbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.toolbar .sp{flex:1}
+ul.roster{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+ul.roster li{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;grid-template-areas:"chk nm pos del" ". sum sum sum" ". ed ed ed";align-items:center;column-gap:10px;row-gap:4px;padding:9px 2px;border-bottom:1px dashed var(--line)}
+ul.roster li.off{opacity:.45}
+ul.roster li .chk{grid-area:chk}
+ul.roster li .nm{grid-area:nm;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ul.roster li .poss{grid-area:pos}
+ul.roster li .del{grid-area:del}
+ul.roster li .sumrow{grid-area:sum}
+ul.roster li .editor{grid-area:ed}
+.chk{width:20px;height:20px;accent-color:var(--accent)}
+.poss{display:flex;gap:4px}
+.pt{font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;border:1.5px solid var(--line);color:var(--muted);background:none;line-height:1.4}
+.pt.G.on{color:var(--g);border-color:var(--g);background:color-mix(in srgb,var(--g) 12%,transparent)}
+.pt.F.on{color:var(--f);border-color:var(--f);background:color-mix(in srgb,var(--f) 12%,transparent)}
+.pt.C.on{color:var(--c);border-color:var(--c);background:color-mix(in srgb,var(--c) 12%,transparent)}
+.pt.big{font-size:13px;padding:5px 12px}
+.sumrow{display:flex;gap:6px;flex-wrap:wrap;align-items:center;border:0;padding:0;background:none;font-weight:500;text-align:left}
+.st{font-family:var(--mono);font-size:12px;padding:1px 7px;border-radius:4px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.st.a{color:var(--atk);background:color-mix(in srgb,var(--atk) 12%,transparent)}
+.st.d{color:var(--def);background:color-mix(in srgb,var(--def) 12%,transparent)}
+.st.p{color:var(--pas);background:color-mix(in srgb,var(--pas) 12%,transparent)}
+.st.t{color:var(--muted)}
+.sumrow .edit{font-size:12px;color:var(--muted);text-decoration:underline;text-underline-offset:2px}
+.editor{display:flex;flex-direction:column;gap:4px;padding:6px 0 2px}
+.statline{display:flex;align-items:center;gap:6px}
+.statline .lbl{min-width:30px}
+.stars{display:flex;align-items:center;gap:0;flex-wrap:nowrap}
+.stars button{border:0;padding:2px 1px;font-size:18px;line-height:1;color:var(--line);background:none;font-weight:400}
+.statline.a .stars button.on{color:var(--atk)}
+.statline.d .stars button.on{color:var(--def)}
+.statline.p .stars button.on{color:var(--pas)}
+.stars .num{font-family:var(--mono);font-size:12px;color:var(--muted);margin-left:6px;font-variant-numeric:tabular-nums;min-width:2ch}
+@media (max-width:380px){.stars button{font-size:16px}}
+.del{border:0;color:var(--muted);padding:2px 6px;font-size:18px;line-height:1}
+.empty{color:var(--muted);font-size:14px;padding:12px 0}
+.settings{display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:14px}
+.settings label{display:flex;gap:6px;align-items:center}
+.teams{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.team{border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--bg)}
+.team .hd{display:flex;justify-content:space-between;align-items:baseline;padding:8px 12px;background:var(--ink);color:var(--panel)}
+.team .hd b{font-family:var(--display);font-weight:400;font-size:18px}
+.team .hd span{font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums}
+.team .tstats{display:flex;gap:6px;padding:8px 12px 0;flex-wrap:wrap}
+.team ol{margin:0;padding:6px 12px 10px;list-style:none;display:flex;flex-direction:column;gap:5px}
+.team li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;font-size:14px}
+.team li .poss{gap:3px}
+.team li .pt{font-size:11px;padding:1px 6px}
+.team li .sk{font-family:var(--mono);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.meter{font-size:13px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.pill{font-weight:700;padding:2px 9px;border-radius:999px;font-size:12px}
+.pill.good{background:color-mix(in srgb,var(--f) 18%,transparent);color:var(--f)}
+.pill.warn{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent)}
+.placeholder{border:1.5px dashed var(--line);border-radius:6px;padding:28px 16px;text-align:center;color:var(--muted)}
+.note{font-size:12px;color:var(--muted);margin:0}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--panel);padding:8px 16px;border-radius:999px;font-size:14px;z-index:5}
+.finalrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border:1.5px dashed var(--accent);border-radius:6px;padding:10px 12px}
+.finalrow .note{flex:1;min-width:160px}
+button.final{background:var(--ink);border-color:var(--ink);color:var(--panel);font-family:var(--display);font-weight:400;font-size:17px;letter-spacing:.02em}
+.fbox{display:flex;flex-direction:column;gap:10px}
+.fbox .warnbox{border:1.5px solid var(--accent);border-radius:6px;padding:10px 12px;background:color-mix(in srgb,var(--accent) 8%,transparent);font-size:14px}
+.fbox ul{margin:0;padding-left:18px;font-size:13px;color:var(--muted)}
+.lockpill{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent)}
+.stage{position:fixed;inset:0;z-index:7;background:#05070d;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  padding:calc(8px + env(safe-area-inset-top,0px)) max(8px,env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px))}
+.stage canvas{max-width:100%;max-height:calc(100% - 64px);width:auto;height:auto;display:block;aspect-ratio:1080/1350}
+.sbar{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;transition:opacity .4s}
+.sbar button{background:#1d2639;border-color:#2b3550;color:#eef1f7}
+.sbar button.primary{background:#ff7a30;border-color:#ff7a30;color:#1a0c03}
+.sbar.fade{opacity:0;pointer-events:none}
+.sheet{position:fixed;inset:0;z-index:4;background:color-mix(in srgb,var(--ink) 55%,transparent);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;
+  padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+[hidden]{display:none!important}
+.cap{position:fixed;inset:0;z-index:6;background:#070a12;display:flex;align-items:center;justify-content:center;
+  padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+.cap img{max-width:100%;max-height:100%;object-fit:contain;display:block}
+.cap-hint{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(24px + env(safe-area-inset-bottom,0px));background:rgba(255,255,255,.92);color:#111827;font-size:14px;font-weight:700;padding:8px 16px;border-radius:999px;transition:opacity .4s;white-space:nowrap}
+.cap-hint.gone{opacity:0}
+.sheet-box{background:var(--panel);border-radius:8px;padding:14px;width:100%;max-width:560px;display:flex;flex-direction:column;gap:10px}
+.sheet-hd{display:flex;justify-content:space-between;align-items:center}
+.sheet-hd b{font-family:var(--display);font-weight:400;font-size:20px}
+.imgwrap{border:1px solid var(--line);border-radius:6px;overflow:hidden;background:#fff}
+.imgwrap img{display:block;width:100%;height:auto;-webkit-touch-callout:default}
+details summary{cursor:pointer;font-size:13px;color:var(--muted)}
+details[open]{display:flex;flex-direction:column;gap:8px}
+textarea{width:100%;min-height:90px;font-family:var(--mono);font-size:12px}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>농구 팀 <span>짜기</span></h1>
+    <div class="sub">공격·수비·패스와 포지션을 고려해 고르게 나눠요</div>
+  </header>
+
+  <div class="grid">
+    <section>
+      <h2>선수 명단 <small id="count"></small></h2>
+      <form class="add" id="addForm">
+        <div class="row">
+          <input id="nameIn" placeholder="이름" maxlength="12" autocomplete="off" required>
+          <button class="primary" type="submit">추가</button>
+        </div>
+        <div class="row">
+          <span class="lbl">포지션</span>
+          <span class="poss" id="posIn">
+            <button type="button" class="pt big G" data-p="G" aria-pressed="false">가드</button>
+            <button type="button" class="pt big F on" data-p="F" aria-pressed="true">포워드</button>
+            <button type="button" class="pt big C" data-p="C" aria-pressed="false">센터</button>
+          </span>
+        </div>
+        <div class="editor" id="addStats"></div>
+      </form>
+      <div class="toolbar">
+        <button class="ghost" id="allOn" type="button">전원 참석</button>
+        <button class="ghost" id="allOff" type="button">전원 해제</button>
+        <span class="sp"></span>
+        <span class="note">능력치를 눌러 수정</span>
+      </div>
+      <ul class="roster" id="roster"></ul>
+      <p class="note" id="sampleNote" hidden>지금 보이는 명단은 예시예요. 삭제하고 실제 회원으로 채워 주세요.</p>
+      <details>
+        <summary>명단 백업 / 불러오기</summary>
+        <p class="note">명단은 이 기기의 브라우저에만 저장돼요. 다른 폰으로 옮기거나 운영진과 공유하려면 아래 텍스트를 복사해 두세요. 한 줄에 "이름,포지션,공격,수비,패스" 형식이고, 포지션은 G(가드)·F(포워드)·C(센터)를 붙여 써요. 예: 홍길동,FC,7,8,5</p>
+        <textarea id="backup" aria-label="명단 텍스트"></textarea>
+        <div class="toolbar"><button class="ghost" id="copyBk" type="button">복사</button><button class="ghost" id="loadBk" type="button">이 텍스트로 명단 교체</button></div>
+      </details>
+    </section>
+
+    <section>
+      <h2>오늘의 팀 <small id="attending"></small></h2>
+      <div class="settings">
+        <label>팀 수 <select id="teamN"><option>2</option><option selected>3</option><option>4</option></select></label>
+        <label><input type="checkbox" class="chk" id="usePos" checked> 포지션 균형</label>
+        <label>인원 부족 보정 <select id="fatigue"><option value="0">끄기</option><option value="0.5" selected>보통</option><option value="1">강하게</option></select></label>
+      </div>
+      <div class="toolbar">
+        <button class="primary" id="make" type="button">팀 나누기</button>
+        <button id="again" type="button">다시 섞기</button>
+        <span class="sp"></span>
+        <button class="ghost" id="copyRes" type="button">카톡용 이미지</button>
+      </div>
+      <div class="finalrow"><span class="note" id="finalStatus">위 버튼은 연습용이에요. 이번 주 팀을 확정할 때는 최종 추첨을 한 번만 하고 영상으로 공유하세요.</span><button class="final" id="finalBtn" type="button">최종 추첨</button></div>
+      <div class="meter" id="meter"></div>
+      <div id="result"><div class="placeholder">참석자를 체크하고 <b>팀 나누기</b>를 누르세요.</div></div>
+    </section>
+  </div>
+</div>
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-box" role="dialog" aria-modal="true" aria-label="팀 이미지">
+    <div class="sheet-hd"><b>카톡용 이미지</b><button type="button" class="ghost" id="sheetClose">닫기</button></div>
+    <p class="note" id="saveHint"><b>캡처용 화면</b>을 누르면 이미지만 화면에 꽉 차게 떠요. 그때 화면을 캡처해서 카톡방에 보내세요. 개인 점수는 들어가지 않아요.</p>
+    <div class="imgwrap"><img id="teamImg" alt="오늘의 팀 편성 이미지"></div>
+    <div class="toolbar"><button class="primary" id="capMode" type="button">캡처용 화면</button><button id="saveImg" type="button">폰에 저장</button></div>
+  </div>
+</div>
+<div class="cap" id="cap" hidden><img id="capImg" alt="오늘의 팀 편성 이미지"><div class="cap-hint" id="capHint">지금 화면을 캡처하세요 · 화면을 누르면 닫혀요</div></div>
+<div class="sheet" id="fSheet" hidden>
+  <div class="sheet-box" role="dialog" aria-modal="true" aria-label="최종 추첨">
+    <div class="sheet-hd"><b>최종 추첨</b><button type="button" class="ghost" id="fClose">닫기</button></div>
+    <div id="fBody"></div>
+  </div>
+</div>
+<div class="stage" id="stage" hidden>
+  <canvas id="dcv" width="1080" height="1350"></canvas>
+  <div class="sbar" id="stageBar">
+    <button type="button" id="replayBtn">다시 보기</button>
+    <button type="button" class="primary" id="gifBtn">GIF 저장</button>
+    <button type="button" id="recBtn">MP4 저장</button>
+    <button type="button" id="muteBtn">소리 끄기</button>
+    <button type="button" id="stageClose">닫기</button>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const POS={G:"가드",F:"포워드",C:"센터"}, ORDER="GFC", MAX=10;
+const STATS=[["a","공격"],["d","수비"],["p","패스"]];
+const SAMPLE=[["김민준","G",7,6,9],["이서준","G",6,5,7],["박도윤","G",4,4,5],["최예준","FC",9,8,6],["정시우","F",6,6,5],["강하준","GF",8,6,7],["조주원","F",4,5,3],["윤지호","C",7,9,4],["장준서","FC",6,7,5],["임건우","G",5,4,6],["한현우","F",7,6,6],["오우진","C",3,4,3]];
+const KEY="hoops-roster-v3";
+let players=[], sample=false, lastTeams=null, openId=null, addSt={a:5,d:5,p:5};
+const $=id=>document.getElementById(id);
+const uid=()=>Math.random().toString(36).slice(2,9);
+const normPos=s=>{const a=ORDER.split("").filter(k=>String(s||"").toUpperCase().includes(k));return a.length?a:["F"]};
+const cl=n=>Math.min(MAX,Math.max(1,Math.round(+n)||5));
+const tot=p=>p.a+p.d+p.p;
+
+function load(){
+  let changed=false;
+  try{
+    const s=localStorage.getItem(KEY);
+    if(s){players=JSON.parse(s)}
+    else{
+      const v2=localStorage.getItem("hoops-roster-v2"), v1=localStorage.getItem("hoops-roster");
+      if(v2){ /* 10점 만점 하나 → 공격·수비·패스에 같은 점수로 옮김 */
+        players=JSON.parse(v2).map(p=>{const k=cl(p.skill);return{id:p.id||uid(),name:p.name,pos:normPos(p.pos),a:k,d:k,p:k,on:p.on!==false}});changed=true}
+      else if(v1){
+        players=JSON.parse(v1).map(p=>{const k=cl(p.skill*2);return{id:p.id||uid(),name:p.name,pos:normPos(p.pos),a:k,d:k,p:k,on:p.on!==false}});changed=true}
+    }
+  }catch(e){}
+  if(!players.length){
+    players=SAMPLE.map(([n,ps,a,d,p])=>({id:uid(),name:n,pos:normPos(ps),a,d,p,on:true}));sample=true;return;
+  }
+  /* 한 번만: 임준우 추가 */
+  let added=false;
+  try{added=localStorage.getItem("hoops-add-imjunwoo")==="1"}catch(e){}
+  if(!added){
+    if(!players.some(p=>p.name==="임준우")) players.push({id:uid(),name:"임준우",pos:["F"],a:5,d:5,p:5,on:true});
+    try{localStorage.setItem("hoops-add-imjunwoo","1")}catch(e){}
+    changed=true;
+  }
+  if(changed) save();
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(players))}catch(e){}}
+function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,1800)}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function chips(o){return `<span class="st a">공${o.a}</span><span class="st d">수${o.d}</span><span class="st p">패${o.p}</span>`}
+function starLine(k,label,v){return `<div class="statline ${k}"><span class="lbl">${label}</span><span class="stars" data-k="${k}">${[...Array(MAX)].map((_,i)=>`<button type="button" data-s="${i+1}" class="${i<v?"on":""}" aria-label="${label} ${i+1}점">★</button>`).join("")}<span class="num">${v}</span></span></div>`}
+function editorHTML(o){return STATS.map(([k,l])=>starLine(k,l,o[k])).join("")}
+function posHTML(pos){return `<span class="poss">${ORDER.split("").map(k=>`<button type="button" class="pt ${k} ${pos.includes(k)?"on":""}" data-p="${k}" aria-pressed="${pos.includes(k)}">${k}</button>`).join("")}</span>`}
+function togglePos(arr,k){const i=arr.indexOf(k);if(i>=0){if(arr.length===1){toast("포지션은 하나 이상 골라야 해요");return arr}arr=arr.filter(x=>x!==k)}else arr=[...arr,k];return ORDER.split("").filter(x=>arr.includes(x))}
+function bindStars(root,obj,after){root.querySelectorAll(".stars").forEach(s=>s.querySelectorAll("button").forEach(b=>b.onclick=()=>{obj[s.dataset.k]=+b.dataset.s;after()}))}
+
+function renderAdd(){const el=$("addStats");el.innerHTML=editorHTML(addSt);bindStars(el,addSt,renderAdd)}
+$("posIn").querySelectorAll(".pt").forEach(b=>b.onclick=()=>{
+  const cur=[...$("posIn").querySelectorAll(".pt.on")].map(x=>x.dataset.p);
+  const next=togglePos(cur,b.dataset.p);
+  $("posIn").querySelectorAll(".pt").forEach(x=>{const on=next.includes(x.dataset.p);x.classList.toggle("on",on);x.setAttribute("aria-pressed",on)});
+});
+
+function render(){
+  const ul=$("roster");ul.innerHTML="";
+  if(!players.length) ul.innerHTML='<li class="empty" style="display:block">아직 선수가 없어요. 위에서 이름을 입력해 추가하세요.</li>';
+  const first=p=>ORDER.indexOf(p.pos[0]);
+  [...players].sort((a,b)=>first(a)-first(b)||tot(b)-tot(a)||a.name.localeCompare(b.name,"ko")).forEach(p=>{
+    const li=document.createElement("li");if(!p.on)li.className="off";
+    const open=openId===p.id;
+    li.innerHTML=`<input type="checkbox" class="chk" id="on-${p.id}" ${p.on?"checked":""} aria-label="${esc(p.name)} 참석">
+      <label class="nm" for="on-${p.id}">${esc(p.name)}</label>
+      ${posHTML(p.pos)}
+      <button type="button" class="del" aria-label="${esc(p.name)} 삭제">×</button>
+      <button type="button" class="sumrow" aria-expanded="${open}">${chips(p)}<span class="st t">합${tot(p)}</span><span class="edit">${open?"닫기":"수정"}</span></button>
+      ${open?`<div class="editor">${editorHTML(p)}</div>`:""}`;
+    li.querySelector(".chk").onchange=e=>{p.on=e.target.checked;commit()};
+    li.querySelectorAll(".poss .pt").forEach(b=>b.onclick=()=>{p.pos=togglePos(p.pos,b.dataset.p);commit()});
+    li.querySelector(".sumrow").onclick=()=>{openId=open?null:p.id;render()};
+    if(open) bindStars(li,p,commit);
+    li.querySelector(".del").onclick=()=>{players=players.filter(x=>x!==p);commit()};
+    ul.appendChild(li);
+  });
+  $("count").textContent=`총 ${players.length}명`;
+  $("attending").textContent=`참석 ${players.filter(p=>p.on).length}명`;
+  $("sampleNote").hidden=!sample;
+  $("backup").value=players.map(p=>`${p.name},${p.pos.join("")},${p.a},${p.d},${p.p}`).join("\n");
+}
+function commit(){save();render()}
+
+/* 팀 배정: 종합점수순 스네이크 드래프트 → 무작위 교환으로
+   종합·공격·수비·패스 합계와 포지션 편차를 최소화.
+   여러 포지션을 가진 선수는 각 포지션에 나눠서(예: 포워드·센터면 0.5씩) 셉니다. */
+function spread(arr){return Math.max(...arr)-Math.min(...arr)}
+/* 점수 균형 최우선: 팀 평균(종합 > 공격·수비·패스) 차이를 가장 크게 벌점, 포지션은 그다음.
+   팀 인원이 다를 수 있어 합계가 아니라 평균으로 비교합니다. */
+/* 체력 보정: 인원이 적은 팀은 교체 선수가 적어 지치므로 실력을 깎아서 계산.
+   보정 배율 = 1 − 강도 × (최대 인원 − 우리 팀 인원) / 최대 인원
+   예) 6명 vs 5명, 보통(0.5) → 5명 팀은 약 8% 약하게 보고, 그만큼 평균이 높은 선수로 채움 */
+function fatigue(t,maxN){const c=+($("fatigue")?.value||0);return 1-c*(maxN-t.length)/maxN}
+function effAvg(t,f,maxN){return t.reduce((s,p)=>s+f(p),0)/t.length*fatigue(t,maxN)}
+function cost(teams,usePos){
+  const maxN=Math.max(...teams.map(t=>t.length));
+  const avg=(t,f)=>effAvg(t,f,maxN);
+  let c=spread(teams.map(t=>avg(t,tot)))*100;
+  for(const [k] of STATS) c+=spread(teams.map(t=>avg(t,p=>p[k])))*40;
+  if(usePos) for(const k of ORDER) c+=spread(teams.map(t=>t.reduce((s,p)=>s+(p.pos.includes(k)?1/p.pos.length:0),0)))*6;
+  return c;
+}
+/* 모든 두 선수 맞바꾸기를 시도해 더 나아지지 않을 때까지 반복 */
+function improve(teams,usePos){
+  let best=cost(teams,usePos), better=true;
+  while(better){
+    better=false;
+    for(let a=0;a<teams.length;a++)for(let b=a+1;b<teams.length;b++)
+      for(let i=0;i<teams[a].length;i++)for(let j=0;j<teams[b].length;j++){
+        [teams[a][i],teams[b][j]]=[teams[b][j],teams[a][i]];
+        const c=cost(teams,usePos);
+        if(c<best-1e-9){best=c;better=true}else [teams[a][i],teams[b][j]]=[teams[b][j],teams[a][i]];
+      }
+  }
+  return best;
+}
+function makeTeams(){
+  const n=+$("teamN").value, usePos=$("usePos").checked;
+  const pool=players.filter(p=>p.on);
+  if(pool.length<n*2){toast(`참석자가 최소 ${n*2}명은 있어야 해요`);return}
+  const tries=pool.length>36?25:60, results=[];
+  for(let r=0;r<tries;r++){
+    const sh=pool.map(p=>({p,k:Math.random()})).sort((a,b)=>a.k-b.k).map(x=>x.p);
+    const teams=Array.from({length:n},()=>[]);
+    sh.forEach((p,i)=>teams[i%n].push(p));
+    results.push({teams,c:improve(teams,usePos)});
+  }
+  /* 가장 균형 잡힌 결과들 중에서 골라 '다시 섞기'마다 조합이 바뀌게 */
+  const min=Math.min(...results.map(x=>x.c));
+  const good=results.filter(x=>x.c<=min+3);
+  const teams=good[Math.floor(Math.random()*good.length)].teams;
+  teams.forEach(t=>t.sort((x,y)=>ORDER.indexOf(x.pos[0])-ORDER.indexOf(y.pos[0])||tot(y)-tot(x)));
+  lastTeams=teams;showTeams();
+}
+const TEAMNAMES=["화이트","블랙","레드","블루"];
+/* 팀 조끼 색: [머리 배경, 글자색] */
+const TEAMCOLORS=[["#ffffff","#1d2433"],["#1d2433","#ffffff"],["#c8322b","#ffffff"],["#2f6fb5","#ffffff"]];
+function showTeams(){
+  const t=lastTeams;if(!t)return;
+  const sum=(team,k)=>team.reduce((s,p)=>s+(k?p[k]:tot(p)),0);
+  const tots=t.map(x=>sum(x));
+  const maxN=Math.max(...t.map(x=>x.length)), uneven=t.some(x=>x.length<maxN)&&+$("fatigue").value>0;
+  const avgs=t.map(x=>sum(x)/x.length/3), eff=t.map(x=>effAvg(x,tot,maxN)/3), gap=spread(eff);
+  const ok=gap<=0.15;
+  $("meter").innerHTML=`<span class="pill ${ok?"good":"warn"}">${ok?"균형 좋음":"전력 차이 "+gap.toFixed(2)}</span><span>팀별 평균 ${t.map((x,i)=>`${TEAMNAMES[i]} ${avgs[i].toFixed(2)}`).join(" · ")}</span>`
+    +(uneven?`<span>인원이 적은 팀은 체력 부담만큼 평균이 높게 짜였어요 (보정 후 전력 ${t.map((x,i)=>`${TEAMNAMES[i]} ${eff[i].toFixed(2)}`).join(" · ")})</span>`:"");
+  $("result").innerHTML=`<div class="teams">${t.map((team,i)=>`
+    <div class="team"><div class="hd" style="background:${TEAMCOLORS[i][0]};color:${TEAMCOLORS[i][1]};border-bottom:1px solid var(--line)"><b>${TEAMNAMES[i]}</b><span>${team.length}명 · 종합 ${tots[i]}</span></div>
+    <div class="tstats">${chips({a:sum(team,"a"),d:sum(team,"d"),p:sum(team,"p")})}</div>
+    <ol>${team.map(p=>`<li><span>${esc(p.name)}</span><span class="poss">${p.pos.map(k=>`<span class="pt ${k} on">${k}</span>`).join("")}</span><span class="sk">${p.a}·${p.d}·${p.p}</span></li>`).join("")}</ol></div>`).join("")}</div>`;
+}
+function resultText(){
+  if(!lastTeams)return"";
+  return "🏀 오늘의 팀\n\n"+lastTeams.map((t,i)=>`[${TEAMNAMES[i]}] ${t.map(p=>p.name).join(", ")}`).join("\n");
+}
+async function copy(text,el){
+  try{await navigator.clipboard.writeText(text);toast("복사했어요")}
+  catch(e){if(el){el.focus();el.select&&el.select()}toast("복사가 막혀 있어요. 직접 선택해서 복사해 주세요")}
+}
+
+$("addForm").onsubmit=e=>{e.preventDefault();const name=$("nameIn").value.trim();if(!name)return;
+  const pos=[...$("posIn").querySelectorAll(".pt.on")].map(x=>x.dataset.p);
+  players.push({id:uid(),name,pos,a:addSt.a,d:addSt.d,p:addSt.p,on:true});sample=false;$("nameIn").value="";$("nameIn").focus();commit();toast(`${name} 추가`)};
+$("allOn").onclick=()=>{players.forEach(p=>p.on=true);commit()};
+$("allOff").onclick=()=>{players.forEach(p=>p.on=false);commit()};
+$("make").onclick=makeTeams;$("again").onclick=makeTeams;
+/* 카톡용 이미지: 팀 이름·선수 이름·포지션과 팀 평균만 그림 (개인 점수 없음) */
+let imgBlob=null;
+function rr(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
+async function drawTeamImage(){
+  const t=lastTeams, n=t.length;
+  const DISP='"Black Han Sans","Noto Sans KR",sans-serif', BODY='"Noto Sans KR",sans-serif';
+  try{await Promise.all([document.fonts.load(`40px ${DISP}`),document.fonts.load(`700 28px ${BODY}`),document.fonts.load(`500 28px ${BODY}`)])}catch(e){}
+  /* 팀 조끼 색: 띠 그라데이션 2색, 글자색, 강조색 */
+  const JC=[["#ffffff","#cfd6e2","#111827","#e5e7eb"],["#3a3f4b","#0b0d12","#ffffff","#9ca3af"],["#ff4d3d","#b3140c","#ffffff","#ff6b5c"],["#3d8bff","#1446a8","#ffffff","#5aa0ff"]];
+  const S={a:["공격","#ff7a59"],d:["수비","#4da3ff"],p:["패스","#3ddc84"]};
+  const W=1080, pad=44, gap=22, cols=n===4?2:n, cw=(W-pad*2-gap*(cols-1))/cols;
+  const rowH=48, headH=118, statH=150, cardPadB=22;
+  const maxP=Math.max(...t.map(x=>x.length));
+  const cardH=headH+statH+maxP*rowH+cardPadB;
+  const rows=Math.ceil(n/cols), top=250, foot=80;
+  const H=top+rows*cardH+(rows-1)*gap+foot;
+  const cv=document.createElement("canvas");cv.width=W;cv.height=H;
+  const ctx=cv.getContext("2d");
+  /* 배경: 밤 코트 */
+  let g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,"#121a2e");g.addColorStop(1,"#070a12");
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  g=ctx.createRadialGradient(W*0.85,60,10,W*0.85,60,620);g.addColorStop(0,"rgba(255,122,48,.45)");g.addColorStop(1,"rgba(255,122,48,0)");
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  /* 코트 라인 */
+  ctx.strokeStyle="rgba(255,140,60,.13)";ctx.lineWidth=6;
+  ctx.beginPath();ctx.arc(W/2,H+40,300,Math.PI,2*Math.PI);ctx.stroke();
+  ctx.beginPath();ctx.arc(W/2,H+40,120,Math.PI,2*Math.PI);ctx.stroke();
+  ctx.strokeRect(W/2-170,H-380,340,420);
+  ctx.beginPath();ctx.arc(W/2,-60,240,0,Math.PI);ctx.stroke();
+  /* 농구공 */
+  const bx=W-pad-70, by=118, br=62;
+  g=ctx.createRadialGradient(bx-20,by-22,8,bx,by,br);g.addColorStop(0,"#ffb070");g.addColorStop(1,"#e2621b");
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(bx,by,br,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle="#4a1d05";ctx.lineWidth=4;
+  ctx.beginPath();ctx.arc(bx,by,br,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(bx-br,by);ctx.lineTo(bx+br,by);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(bx,by-br);ctx.lineTo(bx,by+br);ctx.stroke();
+  ctx.beginPath();ctx.arc(bx-br*1.15,by,br*0.85,-0.75,0.75);ctx.stroke();
+  ctx.beginPath();ctx.arc(bx+br*1.15,by,br*0.85,Math.PI-0.75,Math.PI+0.75);ctx.stroke();
+  /* 제목 */
+  /* 경기일: 이번 주 토요일 (토요일이면 오늘) */
+  const d=new Date();d.setDate(d.getDate()+((6-d.getDay()+7)%7));
+  const days="일월화수목금토";
+  ctx.textBaseline="alphabetic";
+  ctx.fillStyle="#ff8a3d";ctx.font=`700 26px ${BODY}`;ctx.fillText("TODAY'S MATCH",pad,82);
+  ctx.shadowColor="rgba(255,122,48,.55)";ctx.shadowBlur=24;
+  ctx.fillStyle="#ffffff";ctx.font=`96px ${DISP}`;ctx.fillText("오늘의 팀",pad,178);
+  ctx.shadowBlur=0;
+  const chip=`${d.getMonth()+1}월 ${d.getDate()}일 (${days[d.getDay()]})  ·  ${n}팀  ·  ${t.reduce((s,x)=>s+x.length,0)}명`;
+  ctx.font=`500 26px ${BODY}`;const chw=ctx.measureText(chip).width+40;
+  ctx.fillStyle="rgba(255,255,255,.1)";rr(ctx,pad,200,chw,44,22);ctx.fill();
+  ctx.fillStyle="#d7dce6";ctx.fillText(chip,pad+20,231);
+  const avg=(team,k)=>(team.reduce((s,p)=>s+(k?p[k]:tot(p)/3),0)/team.length);
+  t.forEach((team,i)=>{
+    const [c1,c2,fg,acc]=JC[i];
+    const cx=pad+(i%cols)*(cw+gap), cy=top+Math.floor(i/cols)*(cardH+gap);
+    /* 카드 */
+    ctx.save();ctx.shadowColor="rgba(0,0,0,.5)";ctx.shadowBlur=30;ctx.shadowOffsetY=10;
+    ctx.fillStyle="#161d2e";rr(ctx,cx,cy,cw,cardH,22);ctx.fill();ctx.restore();
+    ctx.save();rr(ctx,cx,cy,cw,cardH,22);ctx.clip();
+    g=ctx.createLinearGradient(cx,cy,cx+cw,cy+headH);g.addColorStop(0,c1);g.addColorStop(1,c2);
+    ctx.fillStyle=g;ctx.fillRect(cx,cy,cw,headH);
+    /* 띠의 사선 줄무늬 */
+    ctx.globalAlpha=.12;ctx.fillStyle=fg;
+    for(let s=-headH;s<cw;s+=36){ctx.beginPath();ctx.moveTo(cx+s,cy+headH);ctx.lineTo(cx+s+14,cy+headH);ctx.lineTo(cx+s+14+headH,cy);ctx.lineTo(cx+s+headH,cy);ctx.fill()}
+    ctx.globalAlpha=1;
+    g=ctx.createLinearGradient(0,cy+headH,0,cy+cardH);g.addColorStop(0,"rgba(255,255,255,.06)");g.addColorStop(1,"rgba(255,255,255,0)");
+    ctx.fillStyle=g;ctx.fillRect(cx,cy+headH,cw,cardH-headH);
+    ctx.restore();
+    ctx.strokeStyle=acc;ctx.globalAlpha=.55;ctx.lineWidth=3;rr(ctx,cx+1.5,cy+1.5,cw-3,cardH-3,21);ctx.stroke();ctx.globalAlpha=1;
+    /* 팀 이름 + 평균 */
+    ctx.fillStyle=fg;ctx.font=`${cols>=3?52:58}px ${DISP}`;ctx.fillText(TEAMNAMES[i],cx+22,cy+72);
+    ctx.font=`700 22px ${BODY}`;ctx.globalAlpha=.8;ctx.fillText(`${team.length}명`,cx+24,cy+102);ctx.globalAlpha=1;
+    ctx.textAlign="right";
+    ctx.font=`700 18px ${BODY}`;ctx.globalAlpha=.8;ctx.fillText("팀 평균",cx+cw-22,cy+40);ctx.globalAlpha=1;
+    ctx.font=`58px ${DISP}`;ctx.fillText(avg(team).toFixed(1),cx+cw-22,cy+98);
+    ctx.textAlign="left";
+    /* 능력치 막대 */
+    let sy=cy+headH+30;
+    for(const k of ["a","d","p"]){
+      const [l,col]=S[k], v=avg(team,k), bw=cw-44-110;
+      ctx.fillStyle=col;ctx.font=`700 22px ${BODY}`;ctx.fillText(l,cx+22,sy+8);
+      ctx.fillStyle="rgba(255,255,255,.08)";rr(ctx,cx+86,sy-8,bw,18,9);ctx.fill();
+      g=ctx.createLinearGradient(cx+86,0,cx+86+bw,0);g.addColorStop(0,col+"88");g.addColorStop(1,col);
+      ctx.fillStyle=g;rr(ctx,cx+86,sy-8,Math.max(18,bw*v/10),18,9);ctx.fill();
+      ctx.fillStyle="#ffffff";ctx.font=`26px ${DISP}`;ctx.textAlign="right";ctx.fillText(v.toFixed(1),cx+cw-22,sy+10);ctx.textAlign="left";
+      sy+=40;
+    }
+    ctx.strokeStyle="rgba(255,255,255,.12)";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cx+22,cy+headH+statH-8);ctx.lineTo(cx+cw-22,cy+headH+statH-8);ctx.stroke();
+    /* 선수 */
+    let y=cy+headH+statH+30;
+    team.forEach((p,j)=>{
+      ctx.fillStyle=acc;ctx.beginPath();ctx.arc(cx+30,y-9,5,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle="#f3f5f9";ctx.font=`500 ${cols>=3?27:29}px ${BODY}`;ctx.fillText(p.name,cx+46,y);
+      let px=cx+cw-22;
+      [...p.pos].reverse().forEach(k=>{
+        ctx.font=`700 18px ${BODY}`;const w=ctx.measureText(k).width+18;px-=w;
+        const col={G:"#4da3ff",F:"#3ddc84",C:"#c58bff"}[k];
+        ctx.fillStyle=col+"2e";rr(ctx,px,y-25,w,30,15);ctx.fill();
+        ctx.fillStyle=col;ctx.fillText(k,px+9,y-3);px-=5;
+      });
+      y+=rowH;
+    });
+  });
+  ctx.fillStyle="rgba(255,255,255,.45)";ctx.font=`500 22px ${BODY}`;
+  ctx.fillText("팀 평균 = 팀원들의 공격·수비·패스 평균 (10점 만점)",pad,H-34);
+  return cv;
+}
+$("copyRes").onclick=async()=>{
+  if(!lastTeams){toast("먼저 팀을 나눠 주세요");return}
+  const cv=await drawTeamImage();
+  imgBlob=await new Promise(r=>cv.toBlob(r,"image/png"));
+  $("teamImg").src=cv.toDataURL("image/png");
+  $("sheet").hidden=false;
+};
+$("sheetClose").onclick=()=>{$("sheet").hidden=true};
+/* 캡처용 화면: 이미지만 꽉 차게 띄우고 안내 문구는 2초 뒤 사라짐 */
+$("capMode").onclick=()=>{
+  $("capImg").src=$("teamImg").src;$("cap").hidden=false;
+  const h=$("capHint");h.classList.remove("gone");clearTimeout(h.t);h.t=setTimeout(()=>h.classList.add("gone"),2000);
+  try{document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen().catch(()=>{})}catch(e){}
+};
+$("cap").onclick=()=>{$("cap").hidden=true;try{document.fullscreenElement&&document.exitFullscreen().catch(()=>{})}catch(e){}};
+$("sheet").onclick=e=>{if(e.target.id==="sheet")$("sheet").hidden=true};
+/* 저장: 안드로이드 앱이면 갤러리 저장 + 공유창, 웹이면 파일 다운로드 */
+let dl=null;
+(async()=>{try{dl=window.claude?.use?await window.claude.use("downloads"):null}catch(e){dl=null}
+  if(!dl){$("saveImg").hidden=true;$("saveHint").innerHTML="<b>캡처용 화면</b>을 누르면 이미지만 화면에 꽉 차게 떠요. 그때 화면을 캡처해서 카톡방에 보내세요. 개인 점수는 들어가지 않아요."}})();
+$("saveImg").onclick=async()=>{
+  if(!imgBlob||!dl)return;
+  const d=new Date();d.setDate(d.getDate()+((6-d.getDay()+7)%7));
+  const fn=`오늘의팀_${d.getMonth()+1}월${d.getDate()}일.png`;
+  try{await dl.save({filename:fn,data:imgBlob});toast("저장했어요. 카톡에서 앨범으로 보내세요")}
+  catch(e){
+    const c=e&&e.code;
+    if(c==="declined")toast("저장을 취소했어요");
+    else if(c==="rate_limited")toast("잠시 후 다시 눌러 주세요");
+    else toast("저장할 수 없어요. 화면을 캡처해서 보내 주세요");
+  }
+};
+$("copyBk").onclick=()=>copy($("backup").value,$("backup"));
+$("loadBk").onclick=()=>{
+  const rows=$("backup").value.split("\n").map(l=>l.split(",").map(s=>s.trim())).filter(r=>r[0]);
+  if(!rows.length){toast("불러올 내용이 없어요");return}
+  players=rows.map(r=>{
+    const [n,ps]=r;
+    /* "이름,포지션,점수" 옛 형식이면 세 능력치에 같은 점수 */
+    const a=cl(r[3]!==undefined?r[2]:r[2]), d=cl(r[3]!==undefined?r[3]:r[2]), p=cl(r[4]!==undefined?r[4]:r[2]);
+    return {id:uid(),name:n,pos:normPos(ps),a,d,p,on:true};
+  });
+  sample=false;openId=null;commit();toast(`${players.length}명을 불러왔어요`)};
+
+/* ================= 최종 추첨 (주 1회, 기록·영상) ================= */
+(()=>{
+const KEYS=["a","d","p"];
+const DJC=[["#ffffff","#cfd6e2","#111827","#e5e7eb"],["#3a3f4b","#0b0d12","#ffffff","#9ca3af"],["#ff4d3d","#b3140c","#ffffff","#ff6b5c"],["#3d8bff","#1446a8","#ffffff","#5aa0ff"]];
+const LS_LOCK="final-draw-";
+let fdb=null, rec=null;
+const pad2=n=>String(n).padStart(2,"0");
+function gameDay(){const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+((6-d.getDay()+7)%7));return d}
+const dayKey=d=>`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+const dayLabel=d=>`${d.getMonth()+1}월 ${d.getDate()}일 (${"일월화수목금토"[d.getDay()]})`;
+const timeLabel=ms=>{const d=new Date(ms);return `${d.getMonth()+1}/${d.getDate()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`};
+
+/* 시드 고정 난수 + 균형 배정 (팀 나누기와 같은 기준) */
+function rngFrom(seed){let a=seed>>>0;return()=>{a=a+0x6D2B79F5>>>0;let t=a;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
+const sp=a=>Math.max(...a)-Math.min(...a);
+function makeCost(usePos,fat){return teams=>{
+  const maxN=Math.max(...teams.map(t=>t.length));
+  const eff=(t,f)=>t.reduce((s,p)=>s+f(p),0)/t.length*(1-fat*(maxN-t.length)/maxN);
+  let c=sp(teams.map(t=>eff(t,tot)))*100;
+  for(const k of KEYS)c+=sp(teams.map(t=>eff(t,p=>p[k])))*40;
+  if(usePos)for(const k of ORDER)c+=sp(teams.map(t=>t.reduce((s,p)=>s+(p.pos.includes(k)?1/p.pos.length:0),0)))*6;
+  return c}}
+function climb(teams,cost){let best=cost(teams),better=true;
+  while(better){better=false;
+    for(let a=0;a<teams.length;a++)for(let b=a+1;b<teams.length;b++)
+      for(let i=0;i<teams[a].length;i++)for(let j=0;j<teams[b].length;j++){
+        [teams[a][i],teams[b][j]]=[teams[b][j],teams[a][i]];const c=cost(teams);
+        if(c<best-1e-9){best=c;better=true}else[teams[a][i],teams[b][j]]=[teams[b][j],teams[a][i]]}}
+  return best}
+function build(pool,n,usePos,fat,seed){
+  const rnd=rngFrom(seed),cost=makeCost(usePos,fat),tries=pool.length>36?25:60,res=[];
+  for(let r=0;r<tries;r++){const sh=pool.map(p=>({p,k:rnd()})).sort((a,b)=>a.k-b.k).map(x=>x.p);
+    const teams=Array.from({length:n},()=>[]);sh.forEach((p,i)=>teams[i%n].push(p));res.push({teams,c:climb(teams,cost)})}
+  const min=Math.min(...res.map(x=>x.c)),good=res.filter(x=>x.c<=min+3);
+  return good[Math.floor(rnd()*good.length)].teams}
+
+/* 기록: 서버(db) 우선, 이 기기에도 함께 */
+async function readRec(){const key=dayKey(gameDay());
+  if(fdb){try{const s=await fdb.doc("draws/"+key).get();if(s.exists)return s.data()}catch(e){}}
+  try{const s=localStorage.getItem(LS_LOCK+key);return s?JSON.parse(s):null}catch(e){return null}}
+async function writeRec(r){const key=dayKey(gameDay());
+  try{localStorage.setItem(LS_LOCK+key,JSON.stringify(r))}catch(e){}
+  if(fdb)await fdb.doc("draws/"+key).set(r)}
+
+function renderStatusLine(){
+  const el=$("finalStatus"),gd=gameDay();
+  if(rec)el.innerHTML=`<span class="lockpill">최종 추첨 완료 · ${rec.round}회차</span> ${dayLabel(gd)} 팀이 확정됐어요 (${timeLabel(rec.at)})`;
+  else el.innerHTML=`위 버튼은 연습용이에요. <b>${dayLabel(gd)}</b> 팀을 확정할 때는 최종 추첨을 한 번만 하고 영상으로 공유하세요.`;
+  $("finalBtn").textContent=rec?"최종 추첨 결과":"최종 추첨";
+}
+function openSheet(){
+  const gd=gameDay(),on=players.filter(p=>p.on).length,n=+$("teamN").value,b=$("fBody");
+  const where=fdb?"기록은 서버에 남아서 다른 기기에서도 잠겨요.":"이 화면에서는 서버 기록을 쓸 수 없어 이 기기에서만 잠겨요.";
+  if(!rec){
+    b.innerHTML=`<div class="fbox"><div class="warnbox"><b>${dayLabel(gd)} 최종 추첨은 한 번만 할 수 있어요.</b><br>참석 ${on}명 · ${n}팀으로 추첨해요. 추첨 후에는 결과를 바꿀 수 없으니 참석자를 한 번 더 확인하세요.</div>
+      <ul><li>이름이 한 명씩 뽑혀 팀으로 들어가는 영상이 나와요.</li><li>영상에는 개인 점수가 나오지 않고, 마지막에 팀 평균만 나와요.</li><li>${where}</li></ul>
+      <div class="toolbar"><button class="primary" id="fGo" type="button" ${on<n*2?"disabled":""}>최종 추첨 시작</button><button class="ghost" id="fCancel" type="button">취소</button></div></div>`;
+    $("fGo").onclick=()=>run("");
+  }else{
+    const hist=[...(rec.history||[]),{round:rec.round,at:rec.at,reason:rec.reason}];
+    b.innerHTML=`<div class="fbox"><div><span class="lockpill">추첨 완료 · ${rec.round}회차</span></div>
+      <b>${dayLabel(gd)} 팀이 확정됐어요</b>
+      <ul>${hist.map(x=>`<li>${x.round}회차 ${timeLabel(x.at)}${x.reason?` · 사유: ${esc(x.reason)}`:""}</li>`).join("")}</ul>
+      <div class="toolbar"><button class="primary" id="fWatch" type="button">추첨 영상 보기</button><span class="sp"></span><button class="ghost" id="fRedo" type="button">재추첨…</button></div>
+      <div id="fRedoBox" hidden class="warnbox"><b>${rec.round+1}회차로 재추첨해요.</b> 회차와 사유가 영상과 기록에 그대로 남아요. 지금 참석 ${on}명 · ${n}팀.
+        <div class="toolbar" style="margin-top:8px"><input id="fReason" maxlength="40" placeholder="재추첨 사유 (예: 김OO 불참)" autocomplete="off" style="flex:1;min-width:160px"><button class="primary" id="fRedoGo" type="button">재추첨 시작</button></div></div></div>`;
+    $("fWatch").onclick=()=>{$("fSheet").hidden=true;openStage()};
+    $("fRedo").onclick=()=>{$("fRedoBox").hidden=false;$("fReason").focus()};
+    $("fRedoGo").onclick=()=>{const r=$("fReason").value.trim();if(r.length<2){toast("재추첨 사유를 적어 주세요");return}run(r)};
+  }
+  const c=$("fCancel");if(c)c.onclick=()=>$("fSheet").hidden=true;
+  $("fSheet").hidden=false;
+}
+async function run(reason){
+  const pool=players.filter(p=>p.on),n=+$("teamN").value;
+  if(pool.length<n*2){toast(`참석자가 최소 ${n*2}명은 있어야 해요`);return}
+  const usePos=$("usePos").checked,fat=+$("fatigue").value;
+  const seed=crypto.getRandomValues(new Uint32Array(1))[0]>>>0;
+  const teams=build(pool,n,usePos,fat,seed),rnd=rngFrom(seed^0x9e3779b9);
+  const avg=(t,f)=>Math.round(t.reduce((s,p)=>s+f(p),0)/t.length*10)/10;
+  const out=teams.map((t,i)=>({name:TEAMNAMES[i],members:t.map(p=>({n:p.name,pos:p.pos.join("")})),
+    avg:{t:avg(t,p=>tot(p)/3),a:avg(t,p=>p.a),d:avg(t,p=>p.d),p:avg(t,p=>p.p)}}));
+  const rv=[];out.forEach((t,ti)=>t.members.forEach((m,mi)=>rv.push([ti,mi,rnd()])));rv.sort((a,b)=>a[2]-b[2]);
+  const history=rec?[...(rec.history||[]),{round:rec.round,at:rec.at,reason:rec.reason||""}]:[];
+  const r={date:dayKey(gameDay()),round:rec?rec.round+1:1,reason,at:Date.now(),seed,settings:{n,usePos,fat},count:pool.length,
+    teams:out,reveal:rv.map(x=>[x[0],x[1]]),history};
+  try{await writeRec(r)}catch(e){toast("서버에 기록하지 못해 이 기기에만 저장했어요")}
+  rec=r;renderStatusLine();$("fSheet").hidden=true;openStage();
+}
+
+/* ---------- 영상 ---------- */
+const DISP='"Black Han Sans","Noto Sans KR",sans-serif',BODY='"Noto Sans KR",sans-serif';
+const W=1080,H=1350,INTRO=2.4,OUTRO=5;
+const stepLen=N=>Math.min(1.0,Math.max(0.42,24/N));
+const duration=r=>INTRO+r.reveal.length*stepLen(r.reveal.length)+OUTRO;
+const ease=t=>t<0?0:t>1?1:1-Math.pow(1-t,3);
+function layout(r){const n=r.teams.length,pad=36,gap=16,cw=(W-pad*2-gap*(n-1))/n,top=430,headH=92;
+  const maxR=Math.max(...r.teams.map(t=>t.members.length)),rowH=Math.min(58,(H-top-headH-60)/maxR);
+  return {n,pad,gap,cw,top,headH,rowH,fs:Math.min(32,rowH*0.62)}}
+const slotPos=(L,ti,k)=>({x:L.pad+ti*(L.cw+L.gap),y:L.top+L.headH+14+k*L.rowH});
+function arrival(r){if(r._arr)return r._arr;const c=r.teams.map(()=>0);return r._arr=r.reveal.map(([ti])=>c[ti]++)}
+function bg(c,t,still){let g=c.createLinearGradient(0,0,0,H);g.addColorStop(0,"#121a2e");g.addColorStop(1,"#05070d");c.fillStyle=g;c.fillRect(0,0,W,H);
+  const gx=W*0.82+(still?0:Math.sin(t*0.6)*30);g=c.createRadialGradient(gx,80,10,gx,80,640);g.addColorStop(0,"rgba(255,122,48,.42)");g.addColorStop(1,"rgba(255,122,48,0)");c.fillStyle=g;c.fillRect(0,0,W,H);
+  c.strokeStyle="rgba(255,140,60,.10)";c.lineWidth=6;c.beginPath();c.arc(W/2,H+40,320,Math.PI,2*Math.PI);c.stroke();c.strokeRect(W/2-180,H-400,360,440)}
+function ball(c,x,y,r,rot){c.save();c.translate(x,y);c.rotate(rot);
+  const g=c.createRadialGradient(-r*.3,-r*.35,r*.1,0,0,r);g.addColorStop(0,"#ffb070");g.addColorStop(1,"#e2621b");
+  c.fillStyle=g;c.beginPath();c.arc(0,0,r,0,Math.PI*2);c.fill();c.strokeStyle="#4a1d05";c.lineWidth=r*0.07;
+  c.beginPath();c.arc(0,0,r,0,Math.PI*2);c.stroke();c.beginPath();c.moveTo(-r,0);c.lineTo(r,0);c.stroke();c.beginPath();c.moveTo(0,-r);c.lineTo(0,r);c.stroke();
+  c.beginPath();c.arc(-r*1.15,0,r*.85,-.75,.75);c.stroke();c.beginPath();c.arc(r*1.15,0,r*.85,Math.PI-.75,Math.PI+.75);c.stroke();c.restore()}
+function badges(c,pos,xr,y,sz){let px=xr;[...pos].reverse().forEach(k=>{c.font=`700 ${sz}px ${BODY}`;const w=c.measureText(k).width+sz*0.9;px-=w;
+  const col={G:"#4da3ff",F:"#3ddc84",C:"#c58bff"}[k];c.fillStyle=col+"33";rr(c,px,y-sz*1.15,w,sz*1.6,sz*0.8);c.fill();c.fillStyle=col;c.fillText(k,px+sz*0.45,y-sz*0.05);px-=sz*0.25})}
+function frame(c,r,t,still){
+  const ARR=arrival(r),L=layout(r),N=r.reveal.length,step=stepLen(N),gd=new Date(r.date+"T12:00:00");
+  bg(c,t,still);c.textBaseline="alphabetic";c.textAlign="left";
+  c.globalAlpha=ease(t/0.8);
+  c.fillStyle="#ff8a3d";c.font=`700 26px ${BODY}`;c.fillText("TEAM DRAFT · 최종 추첨",48,78);
+  c.fillStyle="#fff";c.font=`80px ${DISP}`;c.shadowColor="rgba(255,122,48,.55)";c.shadowBlur=22;c.fillText(`${gd.getMonth()+1}월 ${gd.getDate()}일 팀 추첨`,48,162);c.shadowBlur=0;
+  c.fillStyle="#cfd5e2";c.font=`500 26px ${BODY}`;c.fillText(`참석 ${r.count}명 · ${r.teams.length}팀 · ${r.round}회차 · ${timeLabel(r.at)} 추첨`,48,208);
+  if(r.reason){c.fillStyle="#ffb020";c.font=`700 24px ${BODY}`;c.fillText(`재추첨 사유: ${r.reason}`,48,244)}
+  c.globalAlpha=1;ball(c,W-110,118,64,still?0.3:t*1.2);
+  const done=Math.max(0,Math.min(N,Math.floor((t-INTRO)/step))),outT=t-(INTRO+N*step);
+  r.teams.forEach((tm,i)=>{const a=ease((t-0.6-i*0.15)/0.6);if(a<=0)return;
+    const x=L.pad+i*(L.cw+L.gap),y=L.top+(1-a)*40;c.globalAlpha=a;
+    c.fillStyle="rgba(22,29,46,.92)";rr(c,x,y,L.cw,H-L.top-36,18);c.fill();
+    c.save();rr(c,x,y,L.cw,H-L.top-36,18);c.clip();const [c1,c2,fg]=DJC[i];
+    const g=c.createLinearGradient(x,y,x+L.cw,y+L.headH);g.addColorStop(0,c1);g.addColorStop(1,c2);c.fillStyle=g;c.fillRect(x,y,L.cw,L.headH);
+    c.globalAlpha=a*.12;c.fillStyle=fg;for(let s=-L.headH;s<L.cw;s+=32){c.beginPath();c.moveTo(x+s,y+L.headH);c.lineTo(x+s+12,y+L.headH);c.lineTo(x+s+12+L.headH,y);c.lineTo(x+s+L.headH,y);c.fill()}
+    c.restore();c.globalAlpha=a;c.fillStyle=fg;c.font=`${L.n>=4?40:46}px ${DISP}`;c.fillText(tm.name,x+18,y+60);
+    const cnt=r.reveal.slice(0,done).filter(v=>v[0]===i).length;
+    c.textAlign="right";c.font=`700 22px ${BODY}`;c.globalAlpha=a*.85;c.fillText(`${outT>0?tm.members.length:cnt}명`,x+L.cw-16,y+58);c.textAlign="left";c.globalAlpha=1});
+  for(let k=0;k<done;k++){const [ti,mi]=r.reveal[k],m=r.teams[ti].members[mi],s=slotPos(L,ti,ARR[k]);
+    const fresh=k===done-1&&outT<0?1-ease((t-INTRO-(k+1)*step)/0.5):0;
+    if(fresh>0){c.fillStyle=`rgba(255,138,61,${0.35*fresh})`;rr(c,s.x+6,s.y-4,L.cw-12,L.rowH-6,10);c.fill()}
+    c.fillStyle=DJC[ti][3];c.beginPath();c.arc(s.x+20,s.y+L.rowH*0.42,5,0,Math.PI*2);c.fill();
+    c.fillStyle="#f3f5f9";c.font=`500 ${L.fs}px ${BODY}`;c.fillText(m.n,s.x+34,s.y+L.rowH*0.42+L.fs*0.36);
+    if(L.n<=3)badges(c,m.pos,s.x+L.cw-14,s.y+L.rowH*0.42+L.fs*0.36-2,Math.round(L.fs*0.55))}
+  const bx=W/2-270,by=272,bw=540,bh=128;
+  if(t>INTRO-0.6&&outT<0.3){const k=Math.floor((t-INTRO)/step),local=((t-INTRO)-k*step)/step;
+    c.globalAlpha=outT>0?1-outT/0.3:ease((t-INTRO+0.6)/0.6);
+    c.fillStyle="#0b0f1a";rr(c,bx,by,bw,bh,22);c.fill();c.strokeStyle="#ff7a30";c.lineWidth=4;c.stroke();c.textAlign="center";
+    if(t<INTRO){c.fillStyle="#9aa3b5";c.font=`36px ${DISP}`;c.fillText("곧 시작합니다",W/2,by+80)}
+    else if(k<N){const [ti,mi]=r.reveal[k],m=r.teams[ti].members[mi];
+      if(local<0.6){const all=r.teams.flatMap(x=>x.members.map(y=>y.n));c.fillStyle="#6b7590";c.font=`52px ${DISP}`;c.fillText(all[(Math.floor(t*24)+k*7)%all.length],W/2,by+84)}
+      else{const pop=ease((local-0.6)/0.15);c.fillStyle="#fff";c.font=`${Math.round(46+10*pop)}px ${DISP}`;c.fillText(m.n,W/2,by+82);
+        c.fillStyle=DJC[ti][0]==="#ffffff"?"#e5e7eb":DJC[ti][3];c.font=`700 24px ${BODY}`;c.fillText(`→ ${r.teams[ti].name}`,W/2,by+116);
+        if(local>0.78){const f=ease((local-0.78)/0.22),s=slotPos(L,ti,ARR[k]);const fx=W/2+(s.x+94-W/2)*f,fy=by+70+(s.y+L.rowH*0.42-by-70)*f;
+          c.globalAlpha=1-f*0.3;c.fillStyle="#ffcf9e";c.font=`500 ${Math.round(40-(40-L.fs)*f)}px ${BODY}`;c.fillText(m.n,fx,fy)}}}
+    c.textAlign="left";c.globalAlpha=1}
+  if(outT>0){const a=ease((outT-0.3)/0.8),maxM=Math.max(...r.teams.map(q=>q.members.length));
+    r.teams.forEach((tm,i)=>{const x=L.pad+i*(L.cw+L.gap),y=L.top-128;c.globalAlpha=a;
+      c.fillStyle="rgba(11,15,26,.95)";rr(c,x,y,L.cw,112,16);c.fill();c.strokeStyle=DJC[i][3];c.lineWidth=2;c.stroke();
+      c.fillStyle="#9aa3b5";c.font=`700 18px ${BODY}`;c.fillText(tm.members.length<maxM&&r.settings.fat>0?"팀 평균 · 체력 보정":"팀 평균",x+16,y+30);
+      c.fillStyle="#fff";c.font=`52px ${DISP}`;c.fillText(tm.avg.t.toFixed(1),x+16,y+88);
+      c.textAlign="right";c.font=`700 ${L.n>=4?16:19}px ${BODY}`;
+      [["공","a","#ff7a59"],["수","d","#4da3ff"],["패","p","#3ddc84"]].forEach(([l,k,col],j)=>{c.fillStyle=col;c.fillText(`${l} ${tm.avg[k].toFixed(1)}`,x+L.cw-16,y+34+j*27)});c.textAlign="left"});
+    c.globalAlpha=ease((outT-1.2)/0.6);c.save();c.translate(W-190,236);c.rotate(-0.1);
+    c.strokeStyle="#ff7a30";c.lineWidth=5;rr(c,-110,-34,220,68,12);c.stroke();c.fillStyle="#ff7a30";c.font=`40px ${DISP}`;c.textAlign="center";c.fillText("추첨 완료",0,14);c.restore();
+    c.textAlign="left";c.globalAlpha=1}
+  c.fillStyle="rgba(255,255,255,.35)";c.font=`500 20px ${BODY}`;c.fillText("공격·수비·패스 균형으로 자동 배정 · 개인 점수 비공개",48,H-12);
+}
+let raf=0,playing=false;
+function play(onEnd,onFrame){cancelAnimationFrame(raf);const c=$("dcv").getContext("2d"),dur=duration(rec),t0=performance.now();playing=true;
+  const tick=now=>{const t=(now-t0)/1000;frame(c,rec,Math.min(t,dur));onFrame&&onFrame();if(t<dur&&playing)raf=requestAnimationFrame(tick);else{playing=false;onEnd&&onEnd()}};
+  raf=requestAnimationFrame(tick)}
+async function openStage(){
+  try{await Promise.all([document.fonts.load(`40px ${DISP}`),document.fonts.load(`500 28px ${BODY}`),document.fonts.load(`700 28px ${BODY}`)])}catch(e){}
+  $("stage").hidden=false;const bar=$("stageBar");bar.classList.add("fade");
+  await ensureSound();startSound();play(()=>bar.classList.remove("fade"))}
+$("replayBtn").onclick=async()=>{$("stageBar").classList.add("fade");await ensureSound();startSound();play(()=>$("stageBar").classList.remove("fade"))};
+$("muteBtn").onclick=()=>{muted=!muted;$("muteBtn").textContent=muted?"소리 켜기":"소리 끄기";if(muted)stopSound()};
+$("stageClose").onclick=()=>{playing=false;cancelAnimationFrame(raf);stopSound();$("stage").hidden=true};
+/* ---------- 효과음·배경음악 (직접 합성, 영상과 같은 시간표) ----------
+   올스타 드래프트 느낌: 트랩 비트 + 808 베이스 + 브라스 스탭, 지명마다 드리블→스윽(그물)→오케스트라 히트,
+   마지막엔 에어혼·관중 환호·팡파르 */
+const SR=48000;
+async function buildSound(r){
+  const N=r.reveal.length,step=stepLen(N),vdur=duration(r),len=Math.ceil((vdur+1.5)*SR);
+  const ac=new OfflineAudioContext(2,len,SR);
+  const comp=ac.createDynamicsCompressor();comp.threshold.value=-16;comp.knee.value=8;comp.ratio.value=5;comp.attack.value=0.004;comp.release.value=0.2;
+  const mg=ac.createGain();mg.gain.value=0.85;comp.connect(mg);mg.connect(ac.destination);
+  const bgm=ac.createGain();bgm.gain.value=0.75;bgm.connect(comp);
+  const nb=ac.createBuffer(1,SR*2,SR),nd=nb.getChannelData(0);let sd=987654;for(let i=0;i<nd.length;i++){sd=(sd*1103515245+12345)&0x7fffffff;nd[i]=sd/0x3fffffff-1}
+  const sat=ac.createWaveShaper();{const c=new Float32Array(1024);for(let i=0;i<1024;i++){const x=i/512-1;c[i]=Math.tanh(2.2*x)}sat.curve=c}sat.connect(bgm);
+  const env=(g,t,a,peak,d,hold=0)=>{g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(peak,t+a);if(hold)g.gain.setValueAtTime(peak,t+a+hold);g.gain.exponentialRampToValueAtTime(0.0001,t+a+hold+d)};
+  const osc=(t,f,type,peak,d,{f2,pan=0,a=0.004,hold=0,dest=comp,detune=0,glide}={})=>{const o=ac.createOscillator(),g=ac.createGain(),p=ac.createStereoPanner();
+    o.type=type;o.frequency.setValueAtTime(f,t);o.detune.value=detune;if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+(glide||d));
+    p.pan.value=pan;env(g,t,a,peak,d,hold);o.connect(g);g.connect(p);p.connect(dest);o.start(t);o.stop(t+a+hold+d+0.05);return o};
+  const noise=(t,d,peak,type,f,{f2,q=1,a=0.002,hold=0,pan=0,dest=comp}={})=>{const s=ac.createBufferSource(),fl=ac.createBiquadFilter(),g=ac.createGain(),p=ac.createStereoPanner();
+    s.buffer=nb;s.loop=true;fl.type=type;fl.frequency.setValueAtTime(f,t);if(f2)fl.frequency.exponentialRampToValueAtTime(f2,t+a+hold+d);fl.Q.value=q;
+    p.pan.value=pan;env(g,t,a,peak,d,hold);s.connect(fl);fl.connect(g);g.connect(p);p.connect(dest);s.start(t,(t*7.31)%1.5);s.stop(t+a+hold+d+0.05)};
+  /* 드럼 */
+  const kick=(t,v=0.9)=>{osc(t,160,"sine",v,0.32,{f2:42,glide:0.12,dest:bgm});noise(t,0.02,v*0.25,"lowpass",3000,{dest:bgm})};
+  const clap=(t,v=0.32)=>{for(let i=0;i<3;i++)noise(t+i*0.011,0.03,v*0.7,"bandpass",1400,{q:1.2,dest:bgm});noise(t+0.033,0.16,v,"bandpass",1200,{q:0.9,dest:bgm})};
+  const hat=(t,v=0.07,open)=>noise(t,open?0.18:0.035,v,"highpass",8500,{pan:0.25,dest:bgm});
+  const bass808=(t,f,d,v=0.55)=>osc(t,f*2,"sine",v,d,{f2:f,glide:0.05,a:0.006,dest:sat});
+  const stab=(t,notes,v=0.07,d=0.35)=>notes.forEach((f,i)=>{[-9,9].forEach(dt=>osc(t,f,"sawtooth",v,d,{detune:dt,pan:(i-1)*0.3,a:0.01,dest:bgm}))});
+  /* 효과 */
+  const dribble=(t,v=0.55)=>{osc(t,95,"sine",v,0.09,{f2:55}); noise(t,0.03,v*0.35,"lowpass",500)};
+  const swish=(t,v=0.28)=>{noise(t,0.22,v,"highpass",5200,{f2:1400,a:0.01});noise(t+0.02,0.3,v*0.5,"bandpass",2500,{q:0.6,a:0.04})};
+  const orchHit=(t,notes,v=0.09)=>{notes.forEach((f,i)=>{for(const dt of [-12,0,12])osc(t,f,"sawtooth",v,0.55,{detune:dt,pan:(i-1)*0.35,a:0.003})});
+    osc(t,notes[0]/2,"sine",0.35,0.6,{f2:notes[0]/2.2});noise(t,0.12,0.22,"lowpass",2500)};
+  const crowd=(t,d,v=0.05)=>{for(let i=0;i<14;i++){const f=500+((i*613)%1600);noise(t+i*0.03,d*0.6,v,"bandpass",f,{q:4,a:d*0.25,hold:d*0.15,pan:((i%5)-2)/3})}};
+  const airhorn=(t,v=0.06,d=0.45)=>[466,470,233,235,699].forEach((f,i)=>{const o=osc(t,f,"sawtooth",v,0.12,{a:0.02,hold:d,pan:(i%3-1)*0.4});
+    const l=ac.createOscillator(),lg=ac.createGain();l.frequency.value=6;lg.gain.value=6;l.connect(lg);lg.connect(o.frequency);l.start(t);l.stop(t+d+0.2)});
+  const boom=(t,v=1)=>{osc(t,70,"sine",v,1.4,{f2:30,glide:0.9});noise(t,0.6,0.35*v,"lowpass",600,{f2:80})};
+  const riser=(t,d,v=0.16)=>{noise(t,0.05,v,"bandpass",300,{f2:6000,q:2.5,a:d,dest:bgm});osc(t,110,"sawtooth",v*0.25,0.05,{f2:880,glide:d,a:d,dest:bgm})};
+  /* 코드 진행 (A단조: Am–F–C–G) */
+  const CH=[[220,261.6,329.6],[174.6,220,261.6],[261.6,329.6,392],[196,246.9,293.7]],RT=[55,43.65,65.41,49];
+
+  /* ── 인트로: 붐 + 관중 웅성 + 상승음 + 에어혼 ── */
+  boom(0.05,0.9);crowd(0.1,INTRO+0.6,0.035);riser(0.3,INTRO-0.45);
+  for(let t=INTRO-1.0;t<INTRO-0.08;t+=Math.max(0.045,0.16-(t-(INTRO-1.0))*0.12))clap(t,0.1+(t-(INTRO-1.0))*0.18);
+  airhorn(0.25,0.045,0.35);
+
+  /* ── 지명 구간: 박자 = 지명 간격(또는 절반), 이름이 정해지는 순간이 정박 ── */
+  const beat=step>=0.8?step/2:step, grid0=INTRO+step*0.6, endT=INTRO+N*step;
+  const firstBeat=grid0-Math.ceil((grid0-INTRO)/beat)*beat;
+  let b=0;
+  for(let t=firstBeat;t<endT-0.05;t+=beat,b++){
+    if(t<INTRO-0.01)continue;
+    const bar=Math.floor(b/4),pos=b%4,ci=bar%4,prog=(t-INTRO)/(endT-INTRO);
+    if(pos===0||pos===2.5)kick(t,0.85);
+    if(pos===2)kick(t+beat*0.5,0.6);
+    if(pos===1||pos===3)clap(t,0.26);
+    const hd=prog>0.5?4:2;for(let h=0;h<hd;h++)hat(t+h*beat/hd,h%2?0.045:0.07,pos===3&&h===hd-1);
+    if(bar%4===3&&pos===3)for(let h=0;h<6;h++)hat(t+h*beat/6,0.05+h*0.008);
+    if(pos===0){bass808(t,RT[ci],beat*1.8);stab(t,CH[ci],0.045+0.03*prog,beat*0.6)}
+    if(pos===2)bass808(t,RT[ci]*(b%8===2?1.5:1),beat*1.2,0.45);
+    if(bar%8===7&&pos===0)riser(t,beat*4,0.12);
+  }
+  /* 지명마다: 드리블(점점 빨라짐) → 그물 '스윽' → 오케스트라 히트 + 짧은 함성 */
+  const HIT=[[440,554.4,659.3],[392,493.9,587.3],[523.3,659.3,784],[349.2,440,523.3]];
+  r.reveal.forEach(([ti],k)=>{const s=INTRO+k*step,spin=step*0.6;
+    const nd=Math.max(3,Math.round(spin/0.11));for(let i=0;i<nd;i++){const f=i/nd;dribble(s+spin*(1-Math.pow(1-f,1.6)),0.28+0.2*f)}
+    const land=s+spin;swish(land-0.03);orchHit(land,HIT[ti%4],k===N-1?0.12:0.075);
+    if(k%3===0||k===N-1)crowd(land,0.9,0.025)});
+
+  /* ── 피날레: 잠깐 정적 → 붐 + 에어혼 3번 + 큰 함성 + 팡파르 ── */
+  const out=endT;riser(out-0.9,0.85,0.2);
+  boom(out,1);kick(out,1);noise(out,2.5,0.3,"highpass",4500,{q:0.7});
+  [0,0.32,0.64].forEach((d,i)=>airhorn(out+0.05+d,0.05,i===2?0.6:0.22));
+  crowd(out+0.05,4.2,0.07);
+  const fan=[[440,0],[554.4,0.12],[659.3,0.24],[880,0.38]];fan.forEach(([f,d])=>{[-8,8].forEach(dt=>osc(out+0.15+d,f,"sawtooth",0.06,0.45,{detune:dt,a:0.01}));osc(out+0.15+d,f*2,"triangle",0.04,0.4)});
+  [220,277.2,329.6,440,554.4].forEach((f,i)=>[-10,10].forEach(dt=>osc(out+0.7,f,"sawtooth",0.035,1.8,{detune:dt,a:0.05,hold:0.6,pan:(i-2)*0.25})));
+  bass808(out+0.7,55,2.4,0.6);
+  kick(out+1.2,1);noise(out+1.2,0.15,0.35,"lowpass",900);
+  for(let i=0;i<4;i++){kick(out+2.2+i*0.5,0.7);clap(out+2.45+i*0.5,0.22)}
+  return ac.startRendering();
+}
+let sndBuf=null,sndFor=null,actx=null,srcNode=null,muted=false;
+async function ensureSound(){if(sndFor===rec&&sndBuf)return sndBuf;try{sndBuf=await buildSound(rec);sndFor=rec}catch(e){sndBuf=null}return sndBuf}
+function startSound(){stopSound();if(muted||!sndBuf)return;
+  try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume&&actx.resume();
+    srcNode=actx.createBufferSource();srcNode.buffer=sndBuf;srcNode.connect(actx.destination);srcNode.start()}catch(e){}}
+function stopSound(){try{srcNode&&srcNode.stop()}catch(e){}srcNode=null}
+
+/* ---------- MP4 만들기: 브라우저 내장 인코더(WebCodecs)로 직접 만들고 MP4로 포장 ---------- */
+function mp4Mux(samples,desc,codec,W2,H2,fps,aud){
+  const TS=90000,dt=Math.round(TS/fps),n=samples.length;
+  const u32=v=>[(v>>>24)&255,(v>>>16)&255,(v>>>8)&255,v&255],u16=v=>[(v>>8)&255,v&255];
+  const str=s=>[...s].map(ch=>ch.charCodeAt(0));
+  const box=(type,...parts)=>{const body=parts.flat(Infinity);return [...u32(body.length+8),...str(type),...body]};
+  const full=(type,ver,flags,...parts)=>box(type,[ver,(flags>>16)&255,(flags>>8)&255,flags&255],...parts);
+  const matrix=[...u32(0x10000),...u32(0),...u32(0),...u32(0),...u32(0x10000),...u32(0),...u32(0),...u32(0),...u32(0x40000000)];
+  const durMs=Math.round(n*1000/fps);
+  const common=[0,0,0,0,0,0,...u16(1),...u16(0),...u16(0),...new Array(12).fill(0),...u16(W2),...u16(H2),...u32(0x480000),...u32(0x480000),...u32(0),...u16(1),...new Array(32).fill(0),...u16(0x18),...u16(0xffff)];
+  const entry=codec.startsWith("avc1")?box("avc1",common,box("avcC",[...desc])):box("vp09",common,full("vpcC",1,0,[0,10,0x82,1,1,1,...u16(0)]));
+  const keys=samples.map((s,i)=>s.key?i+1:0).filter(Boolean);
+  const ftyp=box("ftyp",str("isom"),u32(512),str("isom"),str("iso2"),str(codec.startsWith("avc1")?"avc1":"iso6"),str("mp41"));
+  let vLen=0;samples.forEach(s=>vLen+=s.data.length);
+  let aLen=0;if(aud)aud.samples.forEach(s=>aLen+=s.data.length);
+  const vOff=ftyp.length+8,aOff=vOff+vLen;
+  const runs=deltas=>{const r=[];for(const d of deltas){if(r.length&&r[r.length-1][1]===d)r[r.length-1][0]++;else r.push([1,d])}return r};
+  const vtrak=box("trak",
+    full("tkhd",0,3,u32(0),u32(0),u32(1),u32(0),u32(durMs),new Array(8).fill(0),u16(0),u16(0),u16(0),u16(0),matrix,u32(W2<<16),u32(H2<<16)),
+    box("mdia",full("mdhd",0,0,u32(0),u32(0),u32(TS),u32(n*dt),u16(0x55c4),u16(0)),
+      full("hdlr",0,0,u32(0),str("vide"),new Array(12).fill(0),str("VideoHandler"),[0]),
+      box("minf",full("vmhd",0,1,new Array(8).fill(0)),box("dinf",full("dref",0,0,u32(1),full("url ",0,1))),
+        box("stbl",full("stsd",0,0,u32(1),entry),full("stts",0,0,u32(1),u32(n),u32(dt)),
+          full("stss",0,0,u32(keys.length),keys.map(k=>u32(k))),full("stsc",0,0,u32(1),u32(1),u32(n),u32(1)),
+          full("stsz",0,0,u32(0),u32(n),samples.map(s=>u32(s.data.length))),full("stco",0,0,u32(1),u32(vOff))))));
+  let atrak=[];
+  if(aud&&aud.samples.length){
+    const sr=aud.sampleRate,ch=aud.channels,an=aud.samples.length;
+    const deltas=aud.samples.map(s=>Math.max(1,Math.round(s.dur*sr/1e6)));const aDur=deltas.reduce((a,b)=>a+b,0);
+    const ase=[0,0,0,0,0,0,...u16(1),...new Array(8).fill(0),...u16(ch),...u16(16),...u16(0),...u16(0),...u32(sr<<16)];
+    let aentry;
+    if(aud.codec==="opus")aentry=box("Opus",ase,box("dOps",[0,ch,...u16(312),...u32(sr),...u16(0),0]));
+    else{let asc=aud.desc&&aud.desc.length?[...aud.desc]:null;
+      if(!asc){const si=[96000,88200,64000,48000,44100,32000,24000,22050,16000,12000,11025,8000].indexOf(sr);const v=(2<<11)|(si<<7)|(ch<<3);asc=[v>>8,v&255]}
+      const dsi=[5,asc.length,...asc],dcd=[4,13+dsi.length,0x40,0x15,0,0,0,...u32(128000),...u32(128000),...dsi],es=[3,3+dcd.length+3,...u16(2),0,...dcd,6,1,2];
+      aentry=box("mp4a",ase,full("esds",0,0,es))}
+    atrak=box("trak",
+      full("tkhd",0,3,u32(0),u32(0),u32(2),u32(0),u32(Math.round(aDur*1000/sr)),new Array(8).fill(0),u16(0),u16(1),u16(0x100),u16(0),matrix,u32(0),u32(0)),
+      box("mdia",full("mdhd",0,0,u32(0),u32(0),u32(sr),u32(aDur),u16(0x55c4),u16(0)),
+        full("hdlr",0,0,u32(0),str("soun"),new Array(12).fill(0),str("SoundHandler"),[0]),
+        box("minf",full("smhd",0,0,u16(0),u16(0)),box("dinf",full("dref",0,0,u32(1),full("url ",0,1))),
+          box("stbl",full("stsd",0,0,u32(1),aentry),(()=>{const r=runs(deltas);return full("stts",0,0,u32(r.length),r.map(([c,d])=>[...u32(c),...u32(d)]))})(),
+            full("stsc",0,0,u32(1),u32(1),u32(an),u32(1)),
+            full("stsz",0,0,u32(0),u32(an),aud.samples.map(s=>u32(s.data.length))),full("stco",0,0,u32(1),u32(aOff))))));
+  }
+  const moov=box("moov",full("mvhd",0,0,u32(0),u32(0),u32(1000),u32(durMs),u32(0x10000),u16(0x100),new Array(10).fill(0),matrix,new Array(24).fill(0),u32(3)),vtrak,atrak);
+  const mdatHead=new Uint8Array([...u32(vLen+aLen+8),...str("mdat")]);
+  return new Blob([new Uint8Array(ftyp),mdatHead,...samples.map(s=>s.data),...(aud?aud.samples.map(s=>s.data):[]),new Uint8Array(moov)],{type:"video/mp4"});
+}
+async function encodeAudio(buf){
+  if(typeof AudioEncoder==="undefined"||!buf)return null;
+  let codec=null;for(const c of ["mp4a.40.2","opus"]){try{if((await AudioEncoder.isConfigSupported({codec:c,sampleRate:SR,numberOfChannels:2,bitrate:128000})).supported){codec=c;break}}catch(e){}}
+  if(!codec)return null;
+  const out=[];let desc=null,err=null;
+  const enc=new AudioEncoder({output:(ch,meta)=>{const d=new Uint8Array(ch.byteLength);ch.copyTo(d);out.push({data:d,dur:ch.duration||(codec==="opus"?20000:1024e6/SR)});
+      if(meta&&meta.decoderConfig&&meta.decoderConfig.description&&!desc){const x=meta.decoderConfig.description;desc=new Uint8Array(x.buffer?x.buffer.slice(x.byteOffset||0,(x.byteOffset||0)+x.byteLength):x)}},error:e=>{err=e}});
+  enc.configure({codec,sampleRate:SR,numberOfChannels:2,bitrate:128000});
+  const L=buf.getChannelData(0),R=buf.getChannelData(1),F=4800;
+  for(let i=0;i<buf.length;i+=F){const n=Math.min(F,buf.length-i),pl=new Float32Array(n*2);pl.set(L.subarray(i,i+n),0);pl.set(R.subarray(i,i+n),n);
+    const ad=new AudioData({format:"f32-planar",sampleRate:SR,numberOfFrames:n,numberOfChannels:2,timestamp:Math.round(i*1e6/SR),data:pl});enc.encode(ad);ad.close();
+    if(enc.encodeQueueSize>8)await new Promise(r=>setTimeout(r,2))}
+  await enc.flush();enc.close();if(err||!out.length)return null;
+  return {codec:codec==="opus"?"opus":"aac",samples:out,desc,sampleRate:SR,channels:2};
+}
+
+async function makeMp4(onProgress){
+  if(typeof VideoEncoder==="undefined")throw {code:"no_webcodecs"};
+  const W2=540,H2=676,FPS=24,dur=duration(rec)+1,total=Math.ceil(dur*FPS);
+  let codec=null;
+  for(const c of ["avc1.42001f","avc1.4d401f","avc1.640028","vp09.00.10.08"]){
+    try{const s=await VideoEncoder.isConfigSupported({codec:c,width:W2,height:H2,bitrate:900000,framerate:FPS,...(c.startsWith("avc1")?{avc:{format:"avc"}}:{})});if(s.supported){codec=c;break}}catch(e){}}
+  if(!codec)throw {code:"no_codec"};
+  const samples=[];let desc=null,err=null;
+  const enc=new VideoEncoder({output:(chunk,meta)=>{const d=new Uint8Array(chunk.byteLength);chunk.copyTo(d);samples.push({data:d,key:chunk.type==="key"});
+      if(meta&&meta.decoderConfig&&meta.decoderConfig.description&&!desc)desc=new Uint8Array(meta.decoderConfig.description.buffer?meta.decoderConfig.description.buffer.slice(0):meta.decoderConfig.description)},
+    error:e=>{err=e}});
+  enc.configure({codec,width:W2,height:H2,bitrate:900000,framerate:FPS,...(codec.startsWith("avc1")?{avc:{format:"avc"}}:{})});
+  const big=document.createElement("canvas");big.width=W;big.height=H;const bc=big.getContext("2d");
+  const sm=document.createElement("canvas");sm.width=W2;sm.height=H2;const sc=sm.getContext("2d");
+  for(let f=0;f<total;f++){
+    if(err)throw {code:"encode_error",message:String(err&&err.message||err)};
+    frame(bc,rec,Math.min(f/FPS,duration(rec)),false);sc.drawImage(big,0,0,W2,H2);
+    const vf=new VideoFrame(sm,{timestamp:Math.round(f*1e6/FPS),duration:Math.round(1e6/FPS)});
+    enc.encode(vf,{keyFrame:f%(FPS*2)===0});vf.close();
+    while(enc.encodeQueueSize>6)await new Promise(r=>setTimeout(r,5));
+    if(f%6===0){onProgress&&onProgress(f/total);await new Promise(r=>setTimeout(r,0))}
+  }
+  await enc.flush();enc.close();
+  if(err)throw {code:"encode_error",message:String(err&&err.message||err)};
+  if(!samples.length||(codec.startsWith("avc1")&&!desc))throw {code:"encode_empty"};
+  onProgress&&onProgress(0.99);
+  const aud=await encodeAudio(await ensureSound());
+  const blob=mp4Mux(samples,desc,codec,W2,H2,FPS,aud);blob.hasAudio=!!aud;return blob;
+}
+/* 예비 수단: 화면을 녹화하는 방식 (MediaRecorder) */
+async function recordFallback(){
+  const mime=["video/mp4;codecs=avc1","video/mp4","video/webm;codecs=vp9","video/webm"].find(m=>window.MediaRecorder&&MediaRecorder.isTypeSupported(m));
+  const small=document.createElement("canvas");small.width=540;small.height=676;
+  if(!mime||!small.captureStream)throw {code:"no_recorder"};
+  const sc=small.getContext("2d"),big=$("dcv"),chunks=[];
+  const mr=new MediaRecorder(small.captureStream(24),{mimeType:mime,videoBitsPerSecond:900000});
+  mr.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};const stopped=new Promise(res=>mr.onstop=res);
+  sc.drawImage(big,0,0,540,676);mr.start(250);
+  await new Promise(res=>play(res,()=>sc.drawImage(big,0,0,540,676)));
+  await new Promise(res=>setTimeout(res,400));mr.stop();await stopped;
+  if(!chunks.length)throw {code:"encode_empty"};
+  return {blob:new Blob(chunks,{type:mime.split(";")[0]}),ext:mime.includes("mp4")?"mp4":"webm"};
+}
+$("recBtn").onclick=async()=>{
+  if(!dl){toast("이 화면에서는 파일 저장이 안 돼요. 휴대폰 화면 녹화로 '다시 보기'를 녹화하세요");return}
+  const b=$("recBtn");if(b.disabled)return;b.disabled=true;const label=b.textContent;
+  let blob=null,ext="mp4",why="";
+  try{blob=await makeMp4(p=>{b.textContent=`MP4 만드는 중 ${Math.round(p*100)}%`})}
+  catch(e){why=(e&&e.code)||"unknown";
+    try{b.textContent="녹화 방식으로 만드는 중…";$("stageBar").classList.add("fade");const r=await recordFallback();blob=r.blob;ext=r.ext}
+    catch(e2){why+=" / "+((e2&&e2.code)||(e2&&e2.name)||"unknown")}
+    finally{$("stageBar").classList.remove("fade")}}
+  b.textContent=label;b.disabled=false;
+  if(!blob){toast(`이 휴대폰에서는 MP4를 만들 수 없어요 (${why}). GIF 저장을 이용해 주세요`);return}
+  const gd=new Date(rec.date+"T12:00:00");
+  try{await dl.save({filename:`팀추첨_${gd.getMonth()+1}월${gd.getDate()}일_${rec.round}회차.${ext}`,data:blob});toast(`저장했어요 (${(blob.size/1048576).toFixed(1)}MB${blob.hasAudio===false?", 소리 없음":""}). 카톡방에서 + → 앨범으로 보내세요`)}
+  catch(e){const c=e&&e.code;toast(c==="declined"?"저장을 취소했어요":c==="rate_limited"?"잠시 후 다시 눌러 주세요":`저장하지 못했어요 (${c||"unknown"}). GIF 저장을 이용해 주세요`)}
+};
+window.__makeMp4=makeMp4;
+
+/* ---------- GIF 만들기 (외부 라이브러리 없이 직접 인코딩) ----------
+   배경을 멈춘 상태로 그려서 프레임마다 바뀐 부분만 저장 → 용량을 작게 */
+function medianCut(hist,maxColors){
+  let boxes=[{cols:[...hist.keys()]}];
+  const ch=(c,i)=>i===0?(c>>10)&31:i===1?(c>>5)&31:c&31;
+  while(boxes.length<maxColors){
+    let bi=-1,bestRange=-1,bestAxis=0;
+    boxes.forEach((b,i)=>{if(b.cols.length<2)return;for(let a=0;a<3;a++){let lo=31,hi=0;for(const c of b.cols){const v=ch(c,a);if(v<lo)lo=v;if(v>hi)hi=v}
+      const w=(hi-lo)*Math.log2(b.cols.length+1);if(w>bestRange){bestRange=w;bi=i;bestAxis=a}}});
+    if(bi<0||bestRange<=0)break;
+    const b=boxes[bi];b.cols.sort((x,y)=>ch(x,bestAxis)-ch(y,bestAxis));
+    let total=0;for(const c of b.cols)total+=hist.get(c);let acc=0,cut=1;
+    for(let i=0;i<b.cols.length;i++){acc+=hist.get(b.cols[i]);if(acc>=total/2){cut=Math.max(1,Math.min(b.cols.length-1,i+1));break}}
+    boxes.splice(bi,1,{cols:b.cols.slice(0,cut)},{cols:b.cols.slice(cut)});
+  }
+  return boxes.map(b=>{let r=0,g=0,bl=0,n=0;for(const c of b.cols){const w=hist.get(c);r+=((c>>10)&31)*w;g+=((c>>5)&31)*w;bl+=(c&31)*w;n+=w}
+    return [Math.round(r/n*255/31),Math.round(g/n*255/31),Math.round(bl/n*255/31)]});
+}
+function lzw(indices,minCode,out){
+  out.push(minCode);
+  const clear=1<<minCode,eoi=clear+1;let size=minCode+1,next=eoi+1,dict=new Map();
+  let cur=0,bits=0,buf=[];
+  const emit=code=>{cur|=code<<bits;bits+=size;while(bits>=8){buf.push(cur&255);cur>>=8;bits-=8}};
+  emit(clear);let prefix=indices[0];
+  for(let i=1;i<indices.length;i++){const k=indices[i],key=prefix*4096+k,v=dict.get(key);
+    if(v!==undefined){prefix=v;continue}
+    emit(prefix);
+    if(next<4096){dict.set(key,next++);if(next>(1<<size)&&size<12)size++}
+    else{emit(clear);dict=new Map();size=minCode+1;next=eoi+1}
+    prefix=k}
+  emit(prefix);emit(eoi);if(bits>0)buf.push(cur&255);
+  for(let i=0;i<buf.length;i+=255){const n=Math.min(255,buf.length-i);out.push(n);for(let j=0;j<n;j++)out.push(buf[i+j])}
+  out.push(0);
+}
+async function makeGif(onProgress){
+  const GW=540,GH=675,FPS=8,dur=duration(rec),total=Math.ceil(dur*FPS)+FPS*2;
+  const big=document.createElement("canvas");big.width=W;big.height=H;const bc=big.getContext("2d");
+  const sm=document.createElement("canvas");sm.width=GW;sm.height=GH;const sc=sm.getContext("2d",{willReadFrequently:true});
+  const grab=t=>{frame(bc,rec,t,true);sc.drawImage(big,0,0,GW,GH);return sc.getImageData(0,0,GW,GH).data};
+  /* 팔레트: 여러 장면의 색을 모아 255색 + 투명 1색 */
+  const hist=new Map();
+  for(const t of [0.5,INTRO+0.3,INTRO+stepLen(rec.reveal.length)*0.7,dur*0.6,dur]){const d=grab(t);
+    for(let i=0;i<d.length;i+=8){const c=((d[i]>>3)<<10)|((d[i+1]>>3)<<5)|(d[i+2]>>3);hist.set(c,(hist.get(c)||0)+1)}}
+  const pal=medianCut(hist,255);while(pal.length<255)pal.push([0,0,0]);
+  const TR=255,map=new Int16Array(32768).fill(-1);
+  const nearest=c=>{let v=map[c];if(v>=0)return v;const r=((c>>10)&31)*255/31,g=((c>>5)&31)*255/31,b=(c&31)*255/31;let bd=1e9;
+    for(let i=0;i<255;i++){const p=pal[i],d=(p[0]-r)**2*2+(p[1]-g)**2*4+(p[2]-b)**2*3;if(d<bd){bd=d;v=i}}map[c]=v;return v};
+  const out=[];const w16=n=>{out.push(n&255,(n>>8)&255)};
+  for(const ch of "GIF89a")out.push(ch.charCodeAt(0));
+  w16(GW);w16(GH);out.push(0xF7,0,0);
+  for(let i=0;i<256;i++){const p=pal[i]||[0,0,0];out.push(p[0],p[1],p[2])}
+  out.push(0x21,0xFF,11);for(const ch of "NETSCAPE2.0")out.push(ch.charCodeAt(0));out.push(3,1,1,0,0); /* 1번만 재생 후 마지막 장면에 멈춤 */
+  let prev=null;const delay=Math.round(100/FPS);let pendingDelay=0;
+  for(let f=0;f<total;f++){
+    const t=Math.min(f/FPS,dur),d=grab(t),idx=new Uint8Array(GW*GH);
+    for(let p=0,i=0;p<idx.length;p++,i+=4)idx[p]=nearest(((d[i]>>3)<<10)|((d[i+1]>>3)<<5)|(d[i+2]>>3));
+    let x0=0,y0=0,x1=GW-1,y1=GH-1;
+    if(prev){x0=GW;y0=GH;x1=-1;y1=-1;
+      for(let y=0;y<GH;y++){const o=y*GW;for(let x=0;x<GW;x++)if(idx[o+x]!==prev[o+x]){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}}
+      if(x1<0){pendingDelay+=delay;continue}}
+    const bw=x1-x0+1,bh=y1-y0+1,sub=new Uint8Array(bw*bh);
+    for(let y=0;y<bh;y++)for(let x=0;x<bw;x++){const p=(y+y0)*GW+x+x0;sub[y*bw+x]=prev&&idx[p]===prev[p]?TR:idx[p]}
+    const dl2=delay+pendingDelay+(f===total-1?300:0);pendingDelay=0;
+    out.push(0x21,0xF9,4,prev?0x05:0x04,dl2&255,(dl2>>8)&255,TR,0);
+    out.push(0x2C);w16(x0);w16(y0);w16(bw);w16(bh);out.push(0);
+    lzw(sub,8,out);
+    prev=idx;
+    if(f%4===0){onProgress&&onProgress(f/total);await new Promise(r=>setTimeout(r,0))}
+  }
+  out.push(0x3B);
+  return new Blob([new Uint8Array(out)],{type:"image/gif"});
+}
+$("gifBtn").onclick=async()=>{
+  if(!dl){toast("이 화면에서는 파일 저장이 안 돼요. 휴대폰 화면 녹화로 '다시 보기'를 녹화하세요");return}
+  const b=$("gifBtn"),bar=$("stageBar");if(b.disabled)return;b.disabled=true;const label=b.textContent;
+  try{
+    try{await Promise.all([document.fonts.load(`40px ${DISP}`),document.fonts.load(`500 28px ${BODY}`),document.fonts.load(`700 28px ${BODY}`)])}catch(e){}
+    const blob=await makeGif(p=>{b.textContent=`GIF 만드는 중 ${Math.round(p*100)}%`});
+    b.textContent=label;
+    const gd=new Date(rec.date+"T12:00:00");
+    await dl.save({filename:`팀추첨_${gd.getMonth()+1}월${gd.getDate()}일_${rec.round}회차.gif`,data:blob});
+    toast(`저장했어요 (${(blob.size/1048576).toFixed(1)}MB). 카톡방에서 + → 앨범으로 보내세요`);
+  }catch(e){const c=e&&e.code;toast(c==="declined"?"저장을 취소했어요":c==="rate_limited"?"잠시 후 다시 눌러 주세요":"GIF를 저장하지 못했어요. MP4 저장이나 화면 녹화를 이용해 주세요")}
+  finally{b.disabled=false;b.textContent=label}
+};
+window.__makeGif=makeGif;
+
+$("finalBtn").onclick=openSheet;
+$("fClose").onclick=()=>$("fSheet").hidden=true;
+renderStatusLine();
+(async()=>{try{fdb=window.claude?.use?await window.claude.use("db"):null}catch(e){fdb=null}rec=await readRec();renderStatusLine()})();
+})();
+
+load();renderAdd();render();if(players.filter(p=>p.on).length>=6)makeTeams();
+</script>
+
+</body>
+</html>

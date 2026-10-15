@@ -1,0 +1,48 @@
+plugins {
+    id 'com.android.application'
+}
+
+def runNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger()
+
+android {
+    namespace 'com.haminkyu.teamdraft'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.haminkyu.teamdraft'
+        minSdk 24
+        targetSdk 34
+        versionCode runNumber
+        versionName "1.0.${runNumber}"
+    }
+
+    signingConfigs {
+        release {
+            storeFile file('../release.keystore')
+            storePassword 'teamdraft'
+            keyAlias 'teamdraft'
+            keyPassword 'teamdraft'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.11.0'
+    implementation 'androidx.core:core:1.13.1'
+}
